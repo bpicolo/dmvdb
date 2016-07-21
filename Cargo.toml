@@ -1,0 +1,9 @@
+[package]
+name = "dmv"
+version = "0.1.0"
+authors = ["Ben Picolo <benp@yelp.com>"]
+
+[dependencies]
+rocksdb = "0.4.1"
+nickel = "*"
+rustc-serialize = "0.3"
