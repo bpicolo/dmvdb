@@ -18,9 +18,6 @@ def add_transaction(trans_id):
     )
 
 latest = get_latest()
-if not latest.text:
-    transaction_id = 1
-else:
-    transaction_id = latest.json()['id']
+transaction_id = latest.json()['id']
 add_transaction(transaction_id + 1)
 print(get_latest().text)

@@ -145,7 +145,13 @@ fn main() {
                 println!("key is {} val is {}", str::from_utf8(&*key).unwrap(), str::from_utf8(&*value).unwrap());
                 str::from_utf8(&*value).unwrap().to_string()
             }
-            None => String::from("")
+            None => {
+                let log = TransactionLog {
+                    id: 0,
+                    facts: vec![]
+                };
+                encode(&log).unwrap()
+            }
         }
     });
 
