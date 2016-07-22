@@ -3,7 +3,6 @@
 extern crate rustc_serialize;
 extern crate rocksdb;
 
-
 use std::str;
 use nickel::{Nickel, HttpRouter, JsonBody};
 use nickel::status::StatusCode;
@@ -12,27 +11,105 @@ use rustc_serialize::json::{encode, Json, ToJson};
 
 
 #[derive(RustcDecodable, RustcEncodable)]
-struct Datom {
-    key: String,
-    value: String
+struct TransactionLog {
+    id: u64,
+    facts: Vec<Fact>
+}
+
+#[derive(RustcDecodable, RustcEncodable)]
+struct TransactionLedger {
+    transaction: u64,
+    facts: Vec<Fact>
 }
 
 
 #[derive(RustcDecodable, RustcEncodable)]
-struct TransactionLog {
+struct Fact {
+    entity: u64,
+    attribute: String,
+    value: String,
+    transaction: u64
+}
+
+#[derive(RustcDecodable, RustcEncodable)]
+struct EntityLog {
     id: u64,
     time: u64
 }
 
+struct FactStorage {
+    db: DB
+}
+
+impl FactStorage {
+    pub fn new() -> FactStorage {
+        FactStorage {
+            db: DB::open_default("/tmp/rocksdb/facts").unwrap()
+        }
+    }
+
+    pub fn store_fact(&self, fact: Fact) -> Result<(), &'static str> {
+        let _ = self.db.put(
+            fact.entity.to_string().as_bytes(),
+            encode(&fact).unwrap().as_bytes()
+        );
+        Ok(())
+    }
+}
+
 fn main() {
     let mut server = Nickel::new();
-    server.post("/log", middleware! { |request, mut response|
+
+    // server.post("/fact", middleware! { |request, mut response|
+    //     match request.json_as::<Fact>() {
+    //         Ok(fact) => {
+    //             let storage = FactStorage::new();
+    //             let _ = storage.store_fact(fact);
+    //             ""
+    //         }
+    //         Err(e) => {
+    //             response.set(StatusCode::BadRequest);
+    //             ""
+    //         }
+    //     }
+    // });
+    // server.post("/entity", middleware! { |request, mut response|
+    //     let db = DB::open_default("/tmp/rocksdb/transactions").unwrap();
+    //     match request.json_as::<EntityLog>() {
+    //         Ok(transaction_log) => {
+    //             let _ = db.put(
+    //                 transaction_log.id.to_string().as_bytes(),
+    //                 transaction_log.time.to_string().as_bytes()
+    //             );
+    //             ""
+    //         }
+    //         Err(e) => {
+    //             response.set(StatusCode::BadRequest);
+    //             ""
+    //         }
+    //     }
+    // });
+    // server.get("/entity/latest", middleware! { |request, mut response|
+    //     let db = DB::open_default("/tmp/rocksdb/transactions").unwrap();
+    //     let mut iter = db.iterator(IteratorMode::End);  // Always iterates backward
+    //     match iter.next() {
+    //         Some((key, value)) => {
+    //             let log = EntityLog {
+    //                 id: str::from_utf8(&*key).unwrap().parse::<u64>().unwrap(),
+    //                 time:  str::from_utf8(&*value).unwrap().parse::<u64>().unwrap()
+    //             };
+    //             encode(&log).unwrap()
+    //         }
+    //         None => String::from("")
+    //     }
+    // });
+    server.post("/transaction", middleware! { |request, mut response|
         let db = DB::open_default("/tmp/rocksdb/transactions").unwrap();
         match request.json_as::<TransactionLog>() {
             Ok(transaction_log) => {
                 let _ = db.put(
                     transaction_log.id.to_string().as_bytes(),
-                    transaction_log.time.to_string().as_bytes()
+                    encode(&transaction_log).unwrap().as_bytes()
                 );
                 ""
             }
@@ -42,36 +119,17 @@ fn main() {
             }
         }
     });
-    server.get("/log/latest", middleware! { |request, mut response|
+    server.get("/transaction/latest", middleware! { |request, mut response|
         let db = DB::open_default("/tmp/rocksdb/transactions").unwrap();
         let mut iter = db.iterator(IteratorMode::End);  // Always iterates backward
         match iter.next() {
             Some((key, value)) => {
-                let log = TransactionLog {
-                    id: str::from_utf8(&*key).unwrap().parse::<u64>().unwrap(),
-                    time:  str::from_utf8(&*value).unwrap().parse::<u64>().unwrap()
-                };
-                encode(&log).unwrap()
+                println!("key is {} val is {}", str::from_utf8(&*key).unwrap(), str::from_utf8(&*value).unwrap());
+                str::from_utf8(&*value).unwrap().to_string()
             }
             None => String::from("")
         }
     });
-
-    // server.post("", middleware! { |request, response|
-    //     let db = DB::open_default("/tmp/rocksdb/storage").unwrap();
-    //     let datum = request.json_as::<Datom>().unwrap();
-    //     db.put(datum.key.as_bytes(), datum.value.as_bytes());
-    //     format!("")
-    // });
-    // server.get("/:key", middleware! { |request, response|
-    //     let db = DB::open_default("/tmp/rocksdb/storage").unwrap();
-    //     let key = request.param("key").unwrap().as_bytes();
-    //     match db.get(key) {
-    //         Ok(Some(value)) => String::from(value.to_utf8().unwrap()),
-    //         Ok(None) => format!(""),
-    //         Err(e) => format!(""),
-    //     }
-    // });
 
     server.listen("127.0.0.1:3000");
 }
