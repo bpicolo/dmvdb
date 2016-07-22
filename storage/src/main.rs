@@ -6,7 +6,7 @@ extern crate rocksdb;
 use std::str;
 use nickel::{Nickel, HttpRouter, JsonBody};
 use nickel::status::StatusCode;
-use rocksdb::{DB, Writable, IteratorMode};
+use rocksdb::{DB, Writable, IteratorMode, Direction, Options};
 use rustc_serialize::json::{encode, Json, ToJson};
 
 
@@ -57,6 +57,18 @@ impl FactStorage {
     }
 }
 
+fn transaction_comparator(left: &[u8], right: &[u8]) -> i32 {
+    let left_as_int = str::from_utf8(left).unwrap().parse::<u64>().unwrap();
+    let right_as_int = str::from_utf8(right).unwrap().parse::<u64>().unwrap();
+    if left_as_int < right_as_int {
+        return -1;
+    } else if left_as_int > right_as_int{
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 fn main() {
     let mut server = Nickel::new();
 
@@ -104,7 +116,10 @@ fn main() {
     //     }
     // });
     server.post("/transaction", middleware! { |request, mut response|
-        let db = DB::open_default("/tmp/rocksdb/transactions").unwrap();
+        let mut opts = Options::default();
+        opts.add_comparator("Transaction log comparator", transaction_comparator);
+        opts.create_if_missing(true);
+        let db = DB::open(&opts, "/tmp/rocksdb/transactions").unwrap();
         match request.json_as::<TransactionLog>() {
             Ok(transaction_log) => {
                 let _ = db.put(
@@ -120,7 +135,10 @@ fn main() {
         }
     });
     server.get("/transaction/latest", middleware! { |request, mut response|
-        let db = DB::open_default("/tmp/rocksdb/transactions").unwrap();
+        let mut opts = Options::default();
+        opts.add_comparator("Transaction log comparator", transaction_comparator);
+        opts.create_if_missing(true);
+        let db = DB::open(&opts, "/tmp/rocksdb/transactions").unwrap();
         let mut iter = db.iterator(IteratorMode::End);  // Always iterates backward
         match iter.next() {
             Some((key, value)) => {

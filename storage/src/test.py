@@ -2,11 +2,8 @@ import requests
 import time
 
 
-transaction_id = 3
-
-
 def get_latest():
-    return requests.get('http://localhost:3000/transaction/latest').text
+    return requests.get('http://localhost:3000/transaction/latest')
 
 
 def add_transaction(trans_id):
@@ -20,7 +17,10 @@ def add_transaction(trans_id):
         }
     )
 
-
-resp = add_transaction(transaction_id)
+latest = get_latest()
+if not latest.text:
+    transaction_id = 1
+else:
+    transaction_id = latest.json()['id']
 add_transaction(transaction_id + 1)
-print(get_latest())
+print(get_latest().text)
